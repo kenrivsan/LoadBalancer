@@ -1,0 +1,15 @@
+/* Reset básico para que la app use toda la pantalla */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  min-height: 100%;
+}
+
+/* (Opcional) evita scroll horizontal accidental */
+body {
+  overflow-x: hidden;
+}

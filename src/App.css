@@ -1,0 +1,127 @@
+:root {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color-scheme: dark;
+}
+
+.page { min-height: 100vh; background: #0b0e14; color: #e7eaf0; }
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  background: rgba(11,14,20,.85);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.logo { font-weight: 700; letter-spacing: .4px; }
+
+.nav a {
+  color: #cfd6e6;
+  text-decoration: none;
+  margin-left: 14px;
+}
+
+.nav a:hover { color: #fff; }
+
+.main {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 18px 64px;
+}
+
+.hero {
+  padding: 42px 22px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(122,162,247,.12), rgba(45,212,191,.08));
+}
+
+.hero h1 { font-size: 36px; margin-bottom: 10px; }
+
+.hero p { color: #cfd6e6; max-width: 60ch; }
+
+.ctaRow { margin-top: 16px; }
+
+.btn {
+  padding: 10px 14px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #0b0e14;
+  background: #e7eaf0;
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+.btn.secondary {
+  background: transparent;
+  color: #e7eaf0;
+  border: 1px solid rgba(255,255,255,.18);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.card {
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.05);
+}
+
+.contact {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.03);
+}
+
+.footer {
+  padding: 16px 22px;
+  text-align: center;
+  color: #98a3b9;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .nav a {
+    margin-left: 0;
+    margin-right: 12px;
+  }
+
+  .hero {
+    padding: 28px 16px;
+  }
+
+  .hero h1 {
+    font-size: 28px;
+  }
+
+  .main {
+    padding: 18px 14px 56px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .btn {
+    display: inline-block;
+    margin-bottom: 10px;
+  }
+}

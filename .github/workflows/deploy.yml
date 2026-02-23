@@ -64,4 +64,4 @@ jobs:
           region: ${{ secrets.AWS_REGION }}
           version_label: v-${{ github.run_id }}-${{ github.run_attempt }}
           deployment_package: deploy.zip
-          existing_bucket_name: elasticbeanstalk-us-east-1-209479280647s
+          existing_bucket_name: elasticbeanstalk-us-east-1-209479280647

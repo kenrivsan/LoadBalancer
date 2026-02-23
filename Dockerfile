@@ -4,7 +4,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 RUN npm run build
@@ -15,10 +15,11 @@ FROM nginx:stable-alpine
 # Elimina el contenido default
 RUN rm -rf /usr/share/nginx/html/*
 
-# Copia el build
+# Copia el build de Vite
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Expone puerto 80
+# Exponer puerto 80
 EXPOSE 80
 
+# Mantener nginx en foreground
 CMD ["nginx", "-g", "daemon off;"]

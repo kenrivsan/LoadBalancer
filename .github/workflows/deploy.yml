@@ -1,4 +1,4 @@
-name: Build and Deploy to AWS Beanstalk
+name: Build Docker Image and Deploy to AWS Beanstalk
 
 on:
   push:
@@ -10,28 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build project
-        run: npm run build
-
-      - name: Zip application
-        run: |
-          zip -r app.zip . \
-            -x "node_modules/*" \
-            -x ".git/*" \
-            -x "dist/*" \
-            -x ".env" \
-            -x ".vscode/*"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -40,11 +20,47 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag and push Docker image to ECR
+        env:
+          ECR_REPOSITORY_URI: ${{ secrets.ECR_REPOSITORY_URI }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REPOSITORY_URI:$IMAGE_TAG .
+          docker push $ECR_REPOSITORY_URI:$IMAGE_TAG
+
+      - name: Create Dockerrun.aws.json
+        env:
+          ECR_REPOSITORY_URI: ${{ secrets.ECR_REPOSITORY_URI }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cat > Dockerrun.aws.json <<EOF
+          {
+            "AWSEBDockerrunVersion": 1,
+            "Image": {
+              "Name": "${ECR_REPOSITORY_URI}:${IMAGE_TAG}",
+              "Update": "true"
+            },
+            "Ports": [
+              { "ContainerPort": 80 }
+            ]
+          }
+          EOF
+
+      - name: Zip deployment package
+        run: |
+          zip -r deploy.zip Dockerrun.aws.json
+
       - name: Deploy to Elastic Beanstalk
         uses: einaregilsson/beanstalk-deploy@v22
         with:
-          application_name: EB_APPLICATION_NAME
-          environment_name: loadbalancer-assignment-03-env
-          version_label: v-${{ github.run_number }}
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: ${{ secrets.EB_APPLICATION_NAME }}
+          environment_name: ${{ secrets.EB_ENVIRONMENT_NAME }}
           region: ${{ secrets.AWS_REGION }}
-          deployment_package: app.zip
+          version_label: v-${{ github.run_number }}
+          deployment_package: deploy.zip

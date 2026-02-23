@@ -10,11 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) AWS creds
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -22,62 +20,61 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 3) Login ECR
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 4) Build + Push Docker image
-      - name: Build and push Docker image to ECR
+      - name: Build, tag and push Docker image to ECR
         env:
           ECR_REPOSITORY_URI: ${{ secrets.ECR_REPOSITORY_URI }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           set -e
-          echo "Building image: $ECR_REPOSITORY_URI:$IMAGE_TAG"
-          docker build -t "$ECR_REPOSITORY_URI:$IMAGE_TAG" .
-          echo "Pushing image..."
-          docker push "$ECR_REPOSITORY_URI:$IMAGE_TAG"
-          echo "Image pushed successfully."
+          IMAGE_URI="${ECR_REPOSITORY_URI}:${IMAGE_TAG}"
+          echo "IMAGE_URI=$IMAGE_URI"
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
 
-      # 5) Generate Dockerrun.aws.json (v1)
-      - name: Generate Dockerrun.aws.json (single container v1)
+      - name: Generate Dockerrun.aws.json (single-container v1)
         env:
           ECR_REPOSITORY_URI: ${{ secrets.ECR_REPOSITORY_URI }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           set -e
-          IMAGE="$ECR_REPOSITORY_URI:$IMAGE_TAG"
-          echo "Using IMAGE = $IMAGE"
+          sudo apt-get update -y
+          sudo apt-get install -y jq
 
-          cat > Dockerrun.aws.json <<EOF
-          {
-            "AWSEBDockerrunVersion": 1,
-            "Image": {
-              "Name": "$IMAGE",
-              "Update": "true"
-            },
-            "Ports": [
-              { "ContainerPort": 80 }
-            ]
-          }
-          EOF
+          IMAGE_URI="${ECR_REPOSITORY_URI}:${IMAGE_TAG}"
+          echo "Using IMAGE_URI=$IMAGE_URI"
 
-          echo "===== Dockerrun.aws.json content ====="
+          # Limpia por si existía uno viejo
+          rm -f Dockerrun.aws.json deploy.zip
+
+          # Genera JSON 100% válido (sin comillas raras, sin indentación problemática)
+          jq -n --arg img "$IMAGE_URI" '{
+            AWSEBDockerrunVersion: 1,
+            Image: { Name: $img, Update: true },
+            Ports: [ { ContainerPort: 80 } ]
+          }' > Dockerrun.aws.json
+
+          echo "===== Dockerrun.aws.json (FINAL) ====="
           cat Dockerrun.aws.json
           echo "======================================"
 
-      # 6) Zip ONLY Dockerrun.aws.json (must be at root)
-      - name: Create deploy.zip
+          # Validación rápida: debe imprimir el número 1
+          echo -n "Dockerrun version detected: "
+          jq -r '.AWSEBDockerrunVersion' Dockerrun.aws.json
+
+      - name: Create deploy.zip (only Dockerrun.aws.json)
         run: |
           set -e
-          rm -f deploy.zip
           zip -r deploy.zip Dockerrun.aws.json
 
-          echo "===== ZIP content (must show Dockerrun.aws.json at root) ====="
+          echo "===== ZIP content ====="
           unzip -l deploy.zip
-          echo "============================================================="
+          echo "===== Dockerrun inside ZIP (what EB receives) ====="
+          unzip -p deploy.zip Dockerrun.aws.json
+          echo "======================================"
 
-      # 7) Deploy to Elastic Beanstalk
       - name: Deploy to Elastic Beanstalk
         uses: einaregilsson/beanstalk-deploy@v22
         with:

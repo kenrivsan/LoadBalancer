@@ -1,4 +1,4 @@
-name: Build and Deploy to AWS Beanstalk
+name: Build Docker Image and Deploy to AWS Beanstalk
 
 on:
   push:
@@ -10,28 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build project
-        run: npm run build
-
-      - name: Zip application
-        run: |
-          zip -r app.zip . \
-            -x "node_modules/*" \
-            -x ".git/*" \
-            -x "dist/*" \
-            -x ".env" \
-            -x ".vscode/*"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -40,11 +20,70 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag and push Docker image to ECR
+        env:
+          ECR_REPOSITORY_URI: ${{ secrets.ECR_REPOSITORY_URI }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -e
+          IMAGE_URI="${ECR_REPOSITORY_URI}:${IMAGE_TAG}"
+          echo "IMAGE_URI=$IMAGE_URI"
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+
+      - name: Generate Dockerrun.aws.json (single-container v1)
+        env:
+          ECR_REPOSITORY_URI: ${{ secrets.ECR_REPOSITORY_URI }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -e
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+          IMAGE_URI="${ECR_REPOSITORY_URI}:${IMAGE_TAG}"
+          echo "Using IMAGE_URI=$IMAGE_URI"
+
+          # Limpia por si existía uno viejo
+          rm -f Dockerrun.aws.json deploy.zip
+
+          # Genera JSON 100% válido (sin comillas raras, sin indentación problemática)
+          jq -n --arg img "$IMAGE_URI" '{
+            AWSEBDockerrunVersion: 1,
+            Image: { Name: $img, Update: true },
+            Ports: [ { ContainerPort: 80 } ]
+          }' > Dockerrun.aws.json
+
+          echo "===== Dockerrun.aws.json (FINAL) ====="
+          cat Dockerrun.aws.json
+          echo "======================================"
+
+          # Validación rápida: debe imprimir el número 1
+          echo -n "Dockerrun version detected: "
+          jq -r '.AWSEBDockerrunVersion' Dockerrun.aws.json
+
+      - name: Create deploy.zip (only Dockerrun.aws.json)
+        run: |
+          set -e
+          zip -r deploy.zip Dockerrun.aws.json
+
+          echo "===== ZIP content ====="
+          unzip -l deploy.zip
+          echo "===== Dockerrun inside ZIP (what EB receives) ====="
+          unzip -p deploy.zip Dockerrun.aws.json
+          echo "======================================"
+
       - name: Deploy to Elastic Beanstalk
         uses: einaregilsson/beanstalk-deploy@v22
         with:
-          application_name: EB_APPLICATION_NAME
-          environment_name: loadbalancer-assignment-03-env
-          version_label: v-${{ github.run_number }}
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: ${{ secrets.EB_APPLICATION_NAME }}
+          environment_name: ${{ secrets.EB_ENVIRONMENT_NAME }}
           region: ${{ secrets.AWS_REGION }}
-          deployment_package: app.zip
+          version_label: v-${{ github.run_id }}-${{ github.run_attempt }}
+          deployment_package: deploy.zip
+          existing_bucket_name: elasticbeanstalk-us-east-1-209479280647
+          wait_for_deployment: true
